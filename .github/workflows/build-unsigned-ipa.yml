@@ -1,4 +1,3 @@
-
 name: Build Chess Assistant IPA
 
 on:
@@ -12,21 +11,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract project ZIP
+      - name: Extract ZIP
         run: |
           ZIP_FILE=$(find . -maxdepth 1 -name '*.zip' -print -quit)
           test -n "$ZIP_FILE"
           mkdir project-src
-          ditto -x -k "$ZIP_FILE" project-src
-          cp -R project-src/App project-src/Extension project-src/project.yml .
+          unzip -q "$ZIP_FILE" -d project-src
+          cp project-src/project.yml .
+          cp -R project-src/App .
+          cp -R project-src/Extension .
 
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Generate project
+      - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Build app
+      - name: Build IPA
         run: |
           xcodebuild \
             -project ChessAssistant.xcodeproj \
@@ -40,14 +41,12 @@ jobs:
 
       - name: Package IPA
         run: |
-          APP_PATH="build/Build/Products/Release-iphoneos/ChessAssistant.app"
-          test -d "$APP_PATH"
           mkdir Payload
-          cp -R "$APP_PATH" Payload/
-          zip -qry ChessAssistant-unsigned.ipa Payload
+          cp -R build/Build/Products/Release-iphoneos/ChessAssistant.app Payload/
+          zip -qry ChessAssistant.ipa Payload
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: ChessAssistant-IPA
-          path: ChessAssistant-unsigned.ipa
+          path: ChessAssistant.ipa
