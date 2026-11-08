@@ -1,0 +1,68 @@
+name: Build Chess Assistant IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+      - name: Download repository
+        uses: actions/checkout@v4
+
+      - name: Extract project archive
+        run: |
+          mkdir extracted
+          ZIP=$(find . -maxdepth 1 -name "*.zip" | head -n 1)
+          if [ -z "$ZIP" ]; then
+            echo "ZIP archive not found"
+            exit 1
+          fi
+          unzip -q "$ZIP" -d extracted
+
+      - name: Find project
+        run: |
+          PROJECT_YML=$(find extracted -name project.yml -print -quit)
+          if [ -z "$PROJECT_YML" ]; then
+            echo "project.yml not found"
+            exit 1
+          fi
+          echo "PROJECT_DIR=$(dirname "$PROJECT_YML")" >> "$GITHUB_ENV"
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: |
+          cd "$PROJECT_DIR"
+          xcodegen generate
+
+      - name: Build app
+        run: |
+          cd "$PROJECT_DIR"
+          xcodebuild \
+            -project ChessAssistant.xcodeproj \
+            -scheme ChessAssistant \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package IPA
+        run: |
+          APP=$(find "$PROJECT_DIR/build/Build/Products" -name "*.app" -type d -print -quit)
+          if [ -z "$APP" ]; then
+            echo "App not found"
+            exit 1
+          fi
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qr ChessAssistant-unsigned.ipa Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChessAssistant-unsigned-IPA
+          path: ChessAssistant-unsigned.ipa
